@@ -6,3 +6,7 @@ error output code:
 1: syntax
 2: file not found
 3: execution (tba)
+
+
+bugs: 
+any command with an input statement (<), will output 3 times, separated by a couple of new lines

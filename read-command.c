@@ -799,17 +799,17 @@ command_stream_t createCommandTrees(Stack_Node * head ){
 						{
 							semicolon = SEMICOLON;
 							if(empty(operators)){
-                                        			push(operators, semicolon);
-                                			}
-							 else{
-                                        			while(getPrecedence(getTopOfStack(operators)->n_type)
-                                                               	>= getPrecedence(semicolon)){
-                                                			merge(commands, operators);
+                                push(operators, semicolon);
+                            }
+							else{
+								while(getPrecedence(getTopOfStack(operators)->n_type)
+                                    	>= getPrecedence(semicolon)){
+                                    merge(commands, operators);
 									if(empty(operators))
-                                                        			break;
-                                        			}
-                                        			push(operators, semicolon);
-                                			}		 
+                                        break;
+								}
+								push(operators, semicolon);
+							}		 
 						}
 					}
 				}
@@ -864,23 +864,23 @@ command_stream_t createCommandTrees(Stack_Node * head ){
 					 else if((currNode->next->n_token).newLines == 1 &&
                                                 currNode->next->next == NULL){ // protects against that one
 						if(!cempty(commands)){
-                                                        emptyStackIntoCommandTree(commands, operators, final);
-                                                        break;
-                                                }
-                                        }
+                            emptyStackIntoCommandTree(commands, operators, final);
+                            break;
+                        }
+                    }
 				}
 				if(empty(operators)){
-                                        push(operators, n_type);
-                                }
+                    push(operators, n_type);
+                }
 				else{
-                                	while(getPrecedence(getTopOfStack(operators)->n_type)
+                    while(getPrecedence(getTopOfStack(operators)->n_type)
                                                                  >= getPrecedence(n_type)){
-                                                merge(commands, operators);
-                                                if(empty(operators))
-                                                        break;
-                                        }
-                                        push(operators, n_type);
-                                }
+                        merge(commands, operators);
+                        if(empty(operators))
+							break;
+                    }
+                    push(operators, n_type);
+                }
 				break;
 			case PIPE:
 			case AND:
@@ -944,16 +944,16 @@ command_stream_t createCommandTrees(Stack_Node * head ){
                                 currCommand->input = (currNode->next->n_token).tokenString;
 				currNode = currNode->next;
 				while((currNode->next->n_token).m_type == WORD){
-                                        j = 0;
-                                        while((currCommand->u).word[j] != NULL){
-                                                j++;
-                                        }
-                                        (currCommand->u).word = (char**)
-                                         checked_realloc( (currCommand->u).word , (j+2) * sizeof(char*));
-                                        (currCommand->u).word[j]= (currNode->next->n_token).tokenString;
-                                        (currCommand->u).word[j+1]=NULL;
-                                        currNode = currNode->next;
-                                }
+                    j = 0;
+                    while((currCommand->u).word[j] != NULL){
+                        j++;
+                    }
+                    (currCommand->u).word = (char**)
+                    checked_realloc( (currCommand->u).word , (j+2) * sizeof(char*));
+                    (currCommand->u).word[j]= (currNode->next->n_token).tokenString;
+                    (currCommand->u).word[j+1]=NULL;
+                    currNode = currNode->next;
+                }
 			break;
 			default:
 				// empty the stack?

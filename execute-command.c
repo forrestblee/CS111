@@ -6,9 +6,14 @@
 
 #include <error.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <string.h>
 
 
 /* FIXME: You may need to add #include directives, macro definitions,
@@ -17,6 +22,14 @@
 // general call for all types of commands   
 void callCommand(command_t c);
 
+// the rest of them
+void executeANDCommand(command_t c);
+void executeSequenceCommand(command_t c);
+void executeORCommand(command_t c);
+void executePipeCommand(command_t c);
+void executeSimpleCommand(command_t c);
+void executeSubshellCommand(command_t c);
+
 int
 command_status (command_t c)
 {
@@ -24,31 +37,36 @@ command_status (command_t c)
 }
 
 void setupIO(command_t c)
-{
+{	
 	if (c->input != NULL)
 	{
 		//create input file descriptor, can be read, possibly written
 		int inp_fd = open(c->input, O_RDWR);
 		if (inp_fd == -1)
 			error(2, 0, "io error: unable to read %s", c->input);
+		//copy old stdin, to revert new stdin back to that
+		//int old_stdin = dup(STDIN_FILENO);
 		//attempt to copy file description
-		int inp_duplicate = dup2(inp_fd, 0);
+		int inp_duplicate = dup2(inp_fd, STDIN_FILENO);
 		if (inp_duplicate == -1)
 			error(2, 0, "io error: dup2 failed");
 		//attempt to close input stream
 		int inp_close = close(inp_fd);
 		if (inp_close == -1)
 			error(2, 0, "io error: unable to close input");
+		//dup2(old_stdin, STDIN_FILENO);
+		
 	}
 	if (c->output != NULL)
 	{
 		//create output file descriptor, can be read, written
 		// possibly needs to be created or overwritten
-		int	out_fd = open(c->output, O_WRONLY, O_CREAT, O_TRUNC);
+		int	out_fd = open(c->output, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP 
+		| S_IWGRP | S_IROTH);
 		if (out_fd == -1)
 			error(2, 0, "io error: unable to read %s", c->output);
 		//attempt to copy file description
-		int out_duplicate = dup2(out_fd, 0);
+		int out_duplicate = dup2(out_fd, STDOUT_FILENO);
 		if (out_duplicate == -1)
 			error(2, 0, "io error: dup2 failed");
 		//attempt to close input stream
@@ -89,6 +107,62 @@ void executeORCommand(command_t c)
 	}
 }
 	
+void executePipeCommand(command_t c)
+{
+	int fd[2];
+	pid_t pid0; 
+	pid_t pid1;
+	
+	if (pipe(fd) == -1)
+		error(3, 0, "pipe failed");
+	pid0 = fork();
+	if (pid0 > 0)
+	{
+		pid1 = fork();
+		if (pid1 > 0)
+		{
+			close(fd[0]);
+			close(fd[1]);
+			int status;
+			int pid_w = waitpid(-1, &status, 0);
+			if (pid_w == pid0)
+			{
+				waitpid(pid1, &status, 0);
+				c->status = WEXITSTATUS(status);
+			}
+			else if (pid_w == pid1)
+			{
+				waitpid(pid0, &status, 0);
+				c->status = WEXITSTATUS(status);
+			}
+			else
+				error(3, 0, "forking error");
+			
+		}
+		else if (pid1 == 0)
+		{
+			close(fd[1]);
+			//save file info for stdin
+			int inp_fd = dup(STDIN_FILENO);
+			//copy file info from pipe to stdout
+			dup2(fd[0], STDIN_FILENO);
+			executeSimpleCommand(c->u.command[1]);
+			// change stdin back to original value
+			dup2(inp_fd, STDIN_FILENO);
+		}
+	}
+	else if (pid0 == 0)
+	{
+		close(fd[0]);
+		//save file info for stdout 
+		int out_fd = dup(STDOUT_FILENO);
+		//copy file info from pipe to stdout
+		dup2(fd[1], STDOUT_FILENO);
+		executeSimpleCommand(c->u.command[0]);
+		//change stdout back to original value
+		dup2(out_fd, STDOUT_FILENO);
+	}
+}
 void executeSimpleCommand(command_t c)
 {
 	pid_t p = fork();
@@ -105,7 +179,7 @@ void executeSimpleCommand(command_t c)
 	{
 		setupIO(c);
 		execvp(c->u.word[0], c->u.word);
-		// if execvp returns at all, error
+		// if execvp returns at all, error			
 		error (3, 0, "runtime error: %s command failed", c->u.word[0]);
 	}
 	else
@@ -114,6 +188,7 @@ void executeSimpleCommand(command_t c)
 
 void executeSubshellCommand(command_t c)
 {
+	setupIO(c);
 	callCommand(c->u.subshell_command);
 	c->status = command_status(c->u.subshell_command);
 }
@@ -134,6 +209,7 @@ void callCommand(command_t c)
 			executeORCommand(c);
 			break;
 		case PIPE_COMMAND:
+			executePipeCommand(c);
 			break;
 		case SIMPLE_COMMAND:
 			executeSimpleCommand(c);
@@ -142,7 +218,7 @@ void callCommand(command_t c)
 			executeSubshellCommand(c);
 			break;
 		default:
-		// should never get here
+			// should never get here
 			error(3, 0, "runtime error: command not recognized");
 			break;
 	}
@@ -154,7 +230,11 @@ execute_command (command_t c, bool time_travel)
   /* FIXME: Replace this with your implementation.  You may need to
      add auxiliary functions and otherwise modify the source code.
      You can also use external functions defined in the GNU C Library.  */
-	callCommand(c);
+	if (!time_travel)
+		callCommand(c);
+	else
+	{
+	}
 	
 //  error (1, 0, "command execution not yet implemented");
 }
